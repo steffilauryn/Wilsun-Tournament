@@ -128,7 +128,9 @@ dialog {
 
 #bracket{
   overflow-x: auto !important;
-  overflow-y: visible !important;
+  overflow-y: auto !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* Make the whole bracket as wide as it needs */
@@ -189,4 +191,19 @@ dialog {
     --col-min: 220px;
     --team-min: 190px;
   }
+}
+
+#bracket::-webkit-scrollbar {
+  display: none;              /* Chrome/Safari/Edge (WebKit/Blink) */
+}
+
+/* Hide scrollbars globally but keep scrollability */
+html, body {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* old IE/Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
