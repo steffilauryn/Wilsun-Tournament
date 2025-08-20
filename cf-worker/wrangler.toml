@@ -1,0 +1,11 @@
+name = "cf-worker"
+main = "src/worker.js"
+compatibility_date = "2025-08-19"
+
+kv_namespaces = [
+  { binding = "RESULTATS", id = "a2674772c3a9447aab1774eb2b58d701", preview_id = "faee722a6367421887c284c5ff7d8bf8" }
+]
+
+[vars]
+# scheme + host only; NO repo path
+ALLOWED_ORIGIN = "https://steffilauryn.github.io,http://localhost:3000"
