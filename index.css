@@ -186,3 +186,28 @@ dialog {
     --team-min: 190px;
   }
 }
+
+/* spacing knobs */
+:root{
+  --col-gap: 16px;   /* gap between ROUND columns */
+  --block-gap: 28px; /* gap between left split, champion, right split */
+}
+
+/* remove the old % margins so we can use gap cleanly */
+.split-one .round,
+.split-two  .round { margin: 0 !important; }
+
+/* gap between columns inside each split */
+.split { gap: var(--col-gap) !important; }
+
+/* gap between the three big blocks (left split | champion | right split) */
+.container { gap: var(--block-gap) !important; }
+
+/* if your browser ignores container gap, this fallback adds space around champion */
+.champion { margin: 0 var(--block-gap) !important; }
+
+/* optional: slightly tighter gaps on small screens */
+@media (max-width: 980px){
+  :root{ --col-gap: 12px; --block-gap: 20px; }
+}
+
