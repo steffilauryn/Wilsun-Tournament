@@ -162,7 +162,7 @@ dialog {
   align-items: center;
   gap: 8px;
   min-width: var(--team-min) !important;  /* wider boxes */
-  width: 100% !important;           /* can grow for long names */
+  width: 95% !important;           /* can grow for long names */
   padding: 0 10px;
   white-space: nowrap;
   overflow: visible !important;            /* don’t clip long names */
