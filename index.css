@@ -122,8 +122,8 @@ dialog {
 /* === Bracket width + horizontal scroll ================================== */
 :root{
   /* tune these to taste */
-  --col-min: 240px;   /* min width of each round column */
-  --team-min: 200px;  /* min width of each <li> "box" */
+  --col-min: 260px;   /* min width of each round column */
+  --team-min: 220px;  /* min width of each <li> "box" */
 }
 
 #bracket{
@@ -152,23 +152,23 @@ dialog {
 
 /* === Matchup / Team sizing ============================================== */
 .matchup{
-  width: max-content !important;   /* column grows to fit widest team */
+  width:  100%  !important;   /* column grows to fit widest team */
   padding: 10px 0;
 }
 
 /* Make the team row flex so name + score are side-by-side cleanly */
 .team{
-  display: inline-flex !important;
+  display: flex !important;
   align-items: center;
   gap: 8px;
   min-width: var(--team-min) !important;  /* wider boxes */
-  width: max-content !important;           /* can grow for long names */
+  width: 100% !important;           /* can grow for long names */
   padding: 0 10px;
   white-space: nowrap;
   overflow: visible !important;            /* don’t clip long names */
   height: 25px;
   line-height: 25px;
-  position: relative;                      /* keep your look */
+ /* position: relative; */                     /* keep your look */
 }
 
 /* Move score into the flex flow so it never overlaps the name */
@@ -179,13 +179,10 @@ dialog {
   right: auto !important;
 }
 
-/* If the hero was clipping, un-hide it */
-.hero{ overflow: visible !important; }
-
 /* Optional: on small screens reduce the column/box widths a bit */
 @media (max-width: 980px){
   :root{
-    --col-min: 200px;
-    --team-min: 170px;
+    --col-min: 220px;
+    --team-min: 190px;
   }
 }
