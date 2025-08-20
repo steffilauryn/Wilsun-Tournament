@@ -16,7 +16,7 @@ function buildCors(req, allowedList) {
 
   const headers = {
     "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Edit-Key",
     "Access-Control-Max-Age": "86400",
   };
 
@@ -71,31 +71,40 @@ export default {
       return json(data, 200, headers);
     }
 
-     // PUT /resultats  -> enforce allowed origins
+    // PUT /resultats  -> enforce allowed origins + edit key
     if (url.pathname === "/resultats" && req.method === "PUT") {
       if (!cors.allowAny && !cors.isAllowed) {
         return json({ error: "Origin not allowed", origin: cors.reqOrigin }, 403, cors.headers);
       }
-			let body = {};
+
+      // ✅ Require the secret header for writes (place it right here)
+      const providedKey = req.headers.get("X-Edit-Key") || "";
+      if (!env.EDIT_KEY || providedKey !== env.EDIT_KEY) {
+        return json({ error: "Invalid or missing edit key" }, 401, cors.headers);
+      }
+
+      // proceed with body parsing & save
+      let body = {};
       try { body = await req.json(); } catch {}
 
       const { category, slot, value, score } = body || {};
-        if (![category, slot, value].every(v => typeof v === "string" && v.trim() !== "")) {
+      if (![category, slot, value].every(v => typeof v === "string" && v.trim() !== "")) {
         return json({ error: "category, slot, value required (strings)" }, 400, cors.headers);
-        }
+      }
 
-     // load current
-        const current = (await env.RESULTATS.get("resultats", { type: "json" })) || {};
-        if (!current[category]) current[category] = {};
-        // store as an object with team + score
-        current[category][slot] = {
+      // load current
+      const current = (await env.RESULTATS.get("resultats", { type: "json" })) || {};
+      if (!current[category]) current[category] = {};
+      // store as an object with team + score
+      current[category][slot] = {
         team: value,
-        // allow empty score; always save a string (or omit if you prefer)
         ...(typeof score === "string" && score.trim() !== "" ? { score: score.trim() } : {})
-        };
+      };
+
       await env.RESULTATS.put("resultats", JSON.stringify(current));
-     return json({ ok: true, saved: { category, slot, team: value, score: score ?? "" } }, 200, cors.headers);
+      return json({ ok: true, saved: { category, slot, team: value, score: score ?? "" } }, 200, cors.headers);
     }
+
     return json({ error: "Not found" }, 404, cors.headers);
   },
 };

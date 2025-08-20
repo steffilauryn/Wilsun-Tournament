@@ -4,6 +4,7 @@ const dialog = document.getElementById("dialog-template");
 const dropdown = document.getElementById("dropdown");
 const scoreInput = document.getElementById("score");
 const saveBtn = document.getElementById("saveBtn");
+const keyInput = document.getElementById("editKey");          // <-- NEW
 
 let currentLi = null;
 let currentCategory = null;
@@ -137,11 +138,14 @@ function attachLiClickHandlers() {
   });
 }
 
-async function saveSelection({ category, slot, value, score }) {
+async function saveSelection({ category, slot, value, score, editKey }) { // <-- CHANGED
   // Always use API_BASE (either local /api or Worker)
   const resp = await fetch(`${API_BASE}/resultats`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Edit-Key": editKey || ""                               // <-- NEW
+    },
     body: JSON.stringify({ category, slot, value, score }),
   });
   if (!resp.ok) {
@@ -165,26 +169,34 @@ function attachSaveHandler() {
       return;
     }
 
-    const picked = dropdown.value;
+    const picked   = dropdown.value;
     const scoreSpan = currentLi.querySelector(".score");
-    const scoreVal = (scoreInput.value ?? "").toString().trim();
+    const scoreVal  = (scoreInput.value ?? "").toString().trim();
+    const editKey   = (keyInput?.value ?? "").trim();           // <-- NEW
+
+    if (!editKey) {                                             // <-- NEW
+      alert("Enter the editor key to save.");
+      return;
+    }
 
     try {
       await saveSelection({
         category: currentCategory,
         slot: currentSlot,
         value: picked,
-        score: scoreVal
+        score: scoreVal,
+        editKey                                             // <-- NEW
       });
 
       // Update UI immediately
       currentLi.firstChild.textContent = picked;
       if (scoreSpan) scoreSpan.textContent = scoreVal ? ` ${scoreVal}` : "";
 
+      if (keyInput) keyInput.value = "";                      // optional: clear key
       dialog.close();
     } catch (err) {
       console.error(err);
-      alert("Erreur: impossible d’enregistrer (serveur).");
+      alert("Save blocked (bad key or server error).");
     }
   });
 }
