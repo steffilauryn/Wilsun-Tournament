@@ -118,3 +118,74 @@ dialog {
   .hero p.year {margin: 5px 0 10px; font-size: 18px;}
 
 }
+
+/* === Bracket width + horizontal scroll ================================== */
+:root{
+  /* tune these to taste */
+  --col-min: 240px;   /* min width of each round column */
+  --team-min: 200px;  /* min width of each <li> "box" */
+}
+
+#bracket{
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+/* Make the whole bracket as wide as it needs */
+.container{
+  max-width: none !important;
+  width: max-content !important;
+}
+
+/* Let left/right halves and champ block size to content (not % of viewport) */
+.split,
+.champion{
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+
+/* Give each round column a solid width so items don’t crush */
+.round{
+  width: auto !important;
+  flex: 0 0 var(--col-min) !important; /* fixed column width */
+}
+
+/* === Matchup / Team sizing ============================================== */
+.matchup{
+  width: max-content !important;   /* column grows to fit widest team */
+  padding: 10px 0;
+}
+
+/* Make the team row flex so name + score are side-by-side cleanly */
+.team{
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  min-width: var(--team-min) !important;  /* wider boxes */
+  width: max-content !important;           /* can grow for long names */
+  padding: 0 10px;
+  white-space: nowrap;
+  overflow: visible !important;            /* don’t clip long names */
+  height: 25px;
+  line-height: 25px;
+  position: relative;                      /* keep your look */
+}
+
+/* Move score into the flex flow so it never overlaps the name */
+.score{
+  position: static !important;
+  margin-left: auto;       /* push score all the way right */
+  float: none !important;
+  right: auto !important;
+}
+
+/* If the hero was clipping, un-hide it */
+.hero{ overflow: visible !important; }
+
+/* Optional: on small screens reduce the column/box widths a bit */
+@media (max-width: 980px){
+  :root{
+    --col-min: 200px;
+    --team-min: 170px;
+  }
+}
