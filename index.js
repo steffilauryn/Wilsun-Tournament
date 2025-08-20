@@ -1,4 +1,4 @@
-// index.js
+// index.js  (dual-mode for Node server + GitHub Pages)
 
 const dialog = document.getElementById("dialog-template");
 const dropdown = document.getElementById("dropdown");
@@ -10,26 +10,43 @@ let currentCategory = null;
 let currentSlot = null;
 
 let niveaux = null;     // teams per category
-let resultats = null;   // saved selections per category/slot
+let resultats = {};     // saved selections per category/slot
+
+// --- ENV detection ---
+// Localhost => Node server (/api)
+// GitHub Pages => use Cloudflare Worker for resultats, static for niveaux
+const isLocalhost = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
+
+// 1) CHANGE THIS to your actual worker URL:
+const WORKER_API = "https://bracket-api.<your-subdomain>.workers.dev";
+
+// 2) If you use a custom domain for Pages, this still works (origin check is on the Worker).
+const MODE = isLocalhost ? "local-server" : "pages-with-worker";
+
+const STATIC_DATA_DIR = "./data";  // niveaux/resultats shipped in repo (read-only)
+let API_BASE = null;               // will be set below
+
+if (MODE === "local-server") {
+  API_BASE = "/api";               // your Express server from earlier
+} else {
+  API_BASE = WORKER_API;           // Cloudflare Worker
+}
+
 
 // ---------- helpers ----------
 function populateDropdown(values, currentText) {
   dropdown.innerHTML = "";
-  if (!Array.isArray(values)) return;
-
-  values.forEach(value => {
-    const option = document.createElement("option");
-    option.textContent = value;
-    option.value = value;
-    if (value === currentText) option.selected = true;
-    dropdown.appendChild(option);
+  (values || []).forEach(value => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = value;
+    if (value === currentText) opt.selected = true;
+    dropdown.appendChild(opt);
   });
 }
 
 function getSlotKey(li) {
-  // Always rely on data-slot; if missing, capture then store it once.
   if (!li.dataset.slot) {
-    // The first text node is your placeholder (e.g., "3P2", "GQF1")
     const key = (li.firstChild?.textContent || "").trim();
     li.dataset.slot = key;
   }
@@ -37,35 +54,67 @@ function getSlotKey(li) {
 }
 
 function applySavedResultsToDOM() {
-  // For each <li>, if we have a saved value in resultats.json, show it
   document.querySelectorAll(".container li").forEach(li => {
     const container = li.closest(".container");
     if (!container) return;
     const category = container.dataset.category;
     const slot = getSlotKey(li);
-
     const saved = resultats?.[category]?.[slot];
-    if (saved && typeof saved === "string" && saved.trim() !== "") {
-      // Replace placeholder text with saved team name
+    if (typeof saved === "string" && saved.trim()) {
       li.firstChild.textContent = saved;
     }
   });
 }
 
+async function fetchJSON(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+function deepMerge(base, add) {
+  if (!add) return base || {};
+  const out = { ...(base || {}) };
+  for (const [k, v] of Object.entries(add)) {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      out[k] = deepMerge(out[k], v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 async function loadData() {
-  const [nivRes, resRes] = await Promise.all([
-    fetch("/api/niveaux"),
-    fetch("/api/resultats"),
-  ]);
-  niveaux   = await nivRes.json();
-  resultats = await resRes.json();
+  try {
+    if (MODE === "local-server") {
+      // Node server: both via API
+      const [niv, res] = await Promise.all([
+        fetchJSON(`${API_BASE}/niveaux`),
+        fetchJSON(`${API_BASE}/resultats`).catch(() => ({})),
+      ]);
+      niveaux = niv;
+      resultats = res || {};
+    } else {
+      // GitHub Pages + Worker:
+      // niveaux from static repo, resultats from Worker API
+      const [niv, res] = await Promise.all([
+        fetchJSON(`${STATIC_DATA_DIR}/niveaux.json`),
+        fetchJSON(`${API_BASE}/resultats`).catch(() => ({})),
+      ]);
+      niveaux = niv;
+      resultats = res || {};
+    }
+  } catch (e) {
+    console.error("loadData error:", e);
+    niveaux = niveaux || {};
+    resultats = resultats || {};
+  }
 
-  // Before we replace any text, store each slot key once
   document.querySelectorAll(".container li").forEach(li => getSlotKey(li));
-
-  // Fill placeholders with saved names (if any)
   applySavedResultsToDOM();
 }
+
 
 function attachLiClickHandlers() {
   document.querySelectorAll(".container li").forEach(li => {
@@ -75,37 +124,44 @@ function attachLiClickHandlers() {
       currentCategory = container?.dataset.category || null;
       currentSlot = getSlotKey(li);
 
-      // current visible text (could be placeholder or saved team)
       const currentText = (li.firstChild?.textContent || "").trim();
       const scoreSpan = li.querySelector(".score");
 
-      // Fill the dropdown from niveaux.json for this category
       const values = niveaux?.[currentCategory] || [];
       populateDropdown(values, currentText);
 
-      // Put existing score (not persisted) into input
       scoreInput.value = scoreSpan ? scoreSpan.textContent.trim() : "";
-
       dialog.showModal();
     });
   });
 }
 
 async function saveSelection({ category, slot, value }) {
-  const resp = await fetch("/api/resultats", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ category, slot, value }),
-  });
-
-  if (!resp.ok) {
-    const msg = await resp.text().catch(() => "");
-    throw new Error(`Save failed: ${resp.status} ${msg}`);
+  if (API_BASE) {
+    // Server mode: write to disk
+    const resp = await fetch(`${API_BASE}/resultats`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, slot, value }),
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      throw new Error(`Save failed: ${resp.status} ${t}`);
+    }
+    // keep local cache in sync
+    if (!resultats[category]) resultats[category] = {};
+    resultats[category][slot] = value;
+  } else {
+    // Static mode: save to localStorage (per-user)
+    if (!resultats[category]) resultats[category] = {};
+    resultats[category][slot] = value;
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ data: resultats, _version: 1 })
+    );
+    // Optional toast
+    console.info("[Static mode] Saved locally to localStorage.");
   }
-
-  // Update local cache so future loads reflect change without refetch
-  if (!resultats[category]) resultats[category] = {};
-  resultats[category][slot] = value;
 }
 
 function attachSaveHandler() {
@@ -126,10 +182,8 @@ function attachSaveHandler() {
         value: picked
       });
 
-      // Update the UI after successful save
+      // Update UI
       currentLi.firstChild.textContent = picked;
-
-      // Score remains a purely visual tweak (not persisted)
       if (scoreSpan) {
         const v = (scoreInput.value ?? "").toString().trim();
         scoreSpan.textContent = v ? ` ${v}` : "";
@@ -138,12 +192,49 @@ function attachSaveHandler() {
       dialog.close();
     } catch (err) {
       console.error(err);
-      alert("Erreur: impossible d’enregistrer. Vérifie que le serveur Node tourne.");
+      alert(
+        API_BASE
+          ? "Erreur: impossible d’enregistrer (serveur)."
+          : "En mode GitHub Pages: sauvegarde locale seulement (localStorage)."
+      );
     }
   });
 }
 
-// ---------- round highlight (kept from your logic) ----------
+// ---------- optional: export merged resultats in static mode ----------
+function addExportButton() {
+  // small floating button in the corner
+  const btn = document.createElement("button");
+  btn.textContent = "Export resultats.json";
+  Object.assign(btn.style, {
+    position: "fixed",
+    right: "12px",
+    bottom: "12px",
+    padding: "10px 12px",
+    borderRadius: "10px",
+    border: "1px solid #ccc",
+    background: "#fff",
+    cursor: "pointer",
+    zIndex: 9999
+  });
+  btn.addEventListener("click", () => {
+    const blob = new Blob(
+      [JSON.stringify(resultats, null, 2)],
+      { type: "application/json" }
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "resultats.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+  document.body.appendChild(btn);
+}
+
+// ---------- round highlight (unchanged) ----------
 (function () {
   function applyHighlight(radio) {
     const round = radio.closest('.round');
