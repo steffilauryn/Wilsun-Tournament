@@ -116,35 +116,3 @@ dialog {
   .hero p.year {margin: 5px 0 10px; font-size: 18px;}
 
 }
-
-/* ---- horizontal scroll for the whole bracket ---- */
-#bracket {
-  overflow-x: auto !important;   /* allow side scroll */
-  overflow-y: visible !important;
-}
-
-/* allow the bracket to be wider than 1100px when content is long */
-.container {
-  max-width: none !important;
-}
-
-/* each matchup <ul> should size to its content (so li can grow) */
-.matchup {
-  width: max-content !important;
-}
-
-/* the actual “box”: let it grow with content */
-.team {
-  display: inline-flex;            /* keeps height tidy, content-driven width */
-  align-items: center;
-  min-width: 150px;                /* your original-ish size */
-  width: max-content;              /* grows with content */
-  padding: 0 8px;                  /* breathing room */
-  white-space: nowrap;             /* single line */
-  overflow: visible !important;    /* don't clip long names */
-  height: 25px;                    /* keep your bracket lines aligned */
-  line-height: 25px;
-}
-
-/* optional: if you see the title area cutting off too, unhide it */
-.hero { overflow: visible !important; }
