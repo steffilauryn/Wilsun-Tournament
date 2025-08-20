@@ -1,4 +1,4 @@
-// index.js  (dual-mode for Node server + GitHub Pages)
+// index.js  (dual-mode for Node server + GitHub Pages + score persistence)
 
 const dialog = document.getElementById("dialog-template");
 const dropdown = document.getElementById("dropdown");
@@ -14,24 +14,17 @@ let resultats = {};     // saved selections per category/slot
 
 // --- ENV detection ---
 // Localhost => Node server (/api)
-// GitHub Pages => use Cloudflare Worker for resultats, static for niveaux
+// GitHub Pages => Cloudflare Worker for resultats, static for niveaux
 const isLocalhost = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
 
-// 1) CHANGE THIS to your actual worker URL:
-const WORKER_API = " https://cf-worker.wilsuntournament.workers.dev";
+// IMPORTANT: remove the leading space you had before
+const WORKER_API = "https://cf-worker.wilsuntournament.workers.dev";
 
-// 2) If you use a custom domain for Pages, this still works (origin check is on the Worker).
 const MODE = isLocalhost ? "local-server" : "pages-with-worker";
+const STATIC_DATA_DIR = "./data";  // niveaux shipped in repo (read-only)
+let API_BASE = MODE === "local-server" ? "/api" : WORKER_API;
 
-const STATIC_DATA_DIR = "./data";  // niveaux/resultats shipped in repo (read-only)
-let API_BASE = null;               // will be set below
-
-if (MODE === "local-server") {
-  API_BASE = "/api";               // your Express server from earlier
-} else {
-  API_BASE = WORKER_API;           // Cloudflare Worker
-}
-
+const STORAGE_KEY = "resultats_local_v1"; // only used if you ever re-enable static fallback
 
 // ---------- helpers ----------
 function populateDropdown(values, currentText) {
@@ -53,6 +46,9 @@ function getSlotKey(li) {
   return li.dataset.slot;
 }
 
+// Handle BOTH shapes in resultats:
+// - old: resultats[cat][slot] = "Team Name"
+// - new: resultats[cat][slot] = { team: "Team Name", score: "15" }
 function applySavedResultsToDOM() {
   document.querySelectorAll(".container li").forEach(li => {
     const container = li.closest(".container");
@@ -60,9 +56,15 @@ function applySavedResultsToDOM() {
     const category = container.dataset.category;
     const slot = getSlotKey(li);
     const saved = resultats?.[category]?.[slot];
-    if (typeof saved === "string" && saved.trim()) {
-      li.firstChild.textContent = saved;
+
+    const team  = typeof saved === "string" ? saved : saved?.team;
+    const score = typeof saved === "object" ? (saved.score || "") : "";
+
+    if (team && team.trim()) {
+      li.firstChild.textContent = team;
     }
+    const scoreSpan = li.querySelector(".score");
+    if (scoreSpan) scoreSpan.textContent = score ? ` ${score}` : "";
   });
 }
 
@@ -115,7 +117,6 @@ async function loadData() {
   applySavedResultsToDOM();
 }
 
-
 function attachLiClickHandlers() {
   document.querySelectorAll(".container li").forEach(li => {
     li.addEventListener("click", () => {
@@ -136,32 +137,24 @@ function attachLiClickHandlers() {
   });
 }
 
-async function saveSelection({ category, slot, value }) {
-  if (API_BASE) {
-    // Server mode: write to disk
-    const resp = await fetch(`${API_BASE}/resultats`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, slot, value }),
-    });
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => "");
-      throw new Error(`Save failed: ${resp.status} ${t}`);
-    }
-    // keep local cache in sync
-    if (!resultats[category]) resultats[category] = {};
-    resultats[category][slot] = value;
-  } else {
-    // Static mode: save to localStorage (per-user)
-    if (!resultats[category]) resultats[category] = {};
-    resultats[category][slot] = value;
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ data: resultats, _version: 1 })
-    );
-    // Optional toast
-    console.info("[Static mode] Saved locally to localStorage.");
+async function saveSelection({ category, slot, value, score }) {
+  // Always use API_BASE (either local /api or Worker)
+  const resp = await fetch(`${API_BASE}/resultats`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category, slot, value, score }),
+  });
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    throw new Error(`Save failed: ${resp.status} ${t}`);
   }
+
+  // Keep local cache in sync with the NEW object shape
+  if (!resultats[category]) resultats[category] = {};
+  resultats[category][slot] = {
+    team: value,
+    ...(score && score.trim() ? { score: score.trim() } : {})
+  };
 }
 
 function attachSaveHandler() {
@@ -174,64 +167,26 @@ function attachSaveHandler() {
 
     const picked = dropdown.value;
     const scoreSpan = currentLi.querySelector(".score");
+    const scoreVal = (scoreInput.value ?? "").toString().trim();
 
     try {
       await saveSelection({
         category: currentCategory,
         slot: currentSlot,
-        value: picked
+        value: picked,
+        score: scoreVal
       });
 
-      // Update UI
+      // Update UI immediately
       currentLi.firstChild.textContent = picked;
-      if (scoreSpan) {
-        const v = (scoreInput.value ?? "").toString().trim();
-        scoreSpan.textContent = v ? ` ${v}` : "";
-      }
+      if (scoreSpan) scoreSpan.textContent = scoreVal ? ` ${scoreVal}` : "";
 
       dialog.close();
     } catch (err) {
       console.error(err);
-      alert(
-        API_BASE
-          ? "Erreur: impossible d’enregistrer (serveur)."
-          : "En mode GitHub Pages: sauvegarde locale seulement (localStorage)."
-      );
+      alert("Erreur: impossible d’enregistrer (serveur).");
     }
   });
-}
-
-// ---------- optional: export merged resultats in static mode ----------
-function addExportButton() {
-  // small floating button in the corner
-  const btn = document.createElement("button");
-  btn.textContent = "Export resultats.json";
-  Object.assign(btn.style, {
-    position: "fixed",
-    right: "12px",
-    bottom: "12px",
-    padding: "10px 12px",
-    borderRadius: "10px",
-    border: "1px solid #ccc",
-    background: "#fff",
-    cursor: "pointer",
-    zIndex: 9999
-  });
-  btn.addEventListener("click", () => {
-    const blob = new Blob(
-      [JSON.stringify(resultats, null, 2)],
-      { type: "application/json" }
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "resultats.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  });
-  document.body.appendChild(btn);
 }
 
 // ---------- round highlight (unchanged) ----------

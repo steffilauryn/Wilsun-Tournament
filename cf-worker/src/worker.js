@@ -80,17 +80,22 @@ export default {
       let body = {};
       try { body = await req.json(); } catch {}
 
-      const { category, slot, value } = body || {};
-      if (![category, slot, value].every(v => typeof v === "string" && v.trim() !== "")) {
+      const { category, slot, value, score } = body || {};
+        if (![category, slot, value].every(v => typeof v === "string" && v.trim() !== "")) {
         return json({ error: "category, slot, value required (strings)" }, 400, cors.headers);
         }
 
-      const current = (await env.RESULTATS.get("resultats", { type: "json" })) || {};
-      if (!current[category]) current[category] = {};
-      current[category][slot] = value;
-
+     // load current
+        const current = (await env.RESULTATS.get("resultats", { type: "json" })) || {};
+        if (!current[category]) current[category] = {};
+        // store as an object with team + score
+        current[category][slot] = {
+        team: value,
+        // allow empty score; always save a string (or omit if you prefer)
+        ...(typeof score === "string" && score.trim() !== "" ? { score: score.trim() } : {})
+        };
       await env.RESULTATS.put("resultats", JSON.stringify(current));
-      return json({ ok: true, saved: { category, slot, value } }, 200, cors.headers);
+     return json({ ok: true, saved: { category, slot, team: value, score: score ?? "" } }, 200, cors.headers);
     }
 
     return json({ error: "Not found" }, 404, cors.headers);
