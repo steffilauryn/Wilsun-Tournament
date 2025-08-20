@@ -18,7 +18,7 @@ let resultats = {};     // saved selections per category/slot
 const isLocalhost = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
 
 // 1) CHANGE THIS to your actual worker URL:
-const WORKER_API = "https://bracket-api.<your-subdomain>.workers.dev";
+const WORKER_API = " https://cf-worker.wilsuntournament.workers.dev";
 
 // 2) If you use a custom domain for Pages, this still works (origin check is on the Worker).
 const MODE = isLocalhost ? "local-server" : "pages-with-worker";
