@@ -207,3 +207,6 @@ body::-webkit-scrollbar {
   width: 0;
   height: 0;
 }
+.hero p{
+  color: #CA5C5C !important;
+}
