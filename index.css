@@ -179,6 +179,10 @@ dialog {
   right: auto !important;
 }
 
+.round-three{
+  margin-right:5px !important;
+}
+
 /* Optional: on small screens reduce the column/box widths a bit */
 @media (max-width: 980px){
   :root{
