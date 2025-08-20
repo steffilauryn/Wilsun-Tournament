@@ -1,3 +1,5 @@
+// index.js
+
 const dialog = document.getElementById("dialog-template");
 const dropdown = document.getElementById("dropdown");
 const scoreInput = document.getElementById("score");
@@ -5,18 +7,16 @@ const saveBtn = document.getElementById("saveBtn");
 
 let currentLi = null;
 let currentCategory = null;
-let jsonData = null; // cache JSON so we only fetch once
+let currentSlot = null;
 
-// Load JSON once at start
-fetch("data/niveaux.json")
-  .then(res => res.json())
-  .then(data => {
-    jsonData = data;
-  });
+let niveaux = null;     // teams per category
+let resultats = null;   // saved selections per category/slot
 
-// Populate dropdown
+// ---------- helpers ----------
 function populateDropdown(values, currentText) {
   dropdown.innerHTML = "";
+  if (!Array.isArray(values)) return;
+
   values.forEach(value => {
     const option = document.createElement("option");
     option.textContent = value;
@@ -26,83 +26,164 @@ function populateDropdown(values, currentText) {
   });
 }
 
-// Attach one listener for all <li> inside .container
-document.querySelectorAll(".container li").forEach(li => {
-  li.addEventListener("click", () => {
-    currentLi = li;
-    currentCategory = li.closest(".container").dataset.category; // 👈 auto detect JSON key
-
-    const currentText = li.childNodes[0].textContent.trim();
-    const scoreSpan = li.querySelector(".score");
-
-    if (jsonData && jsonData[currentCategory]) {
-      populateDropdown(jsonData[currentCategory], currentText);
-    } else {
-      console.error(`Category ${currentCategory} not found in JSON`);
-      dropdown.innerHTML = "<option>⚠️ No values</option>";
-    }
-
-    scoreInput.value = scoreSpan ? scoreSpan.textContent.trim() : "";
-    dialog.showModal();
-  });
-});
-
-// Save button
-saveBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  if (currentLi) {
-    const scoreSpan = currentLi.querySelector(".score");
-    currentLi.childNodes[0].textContent = dropdown.value;
-    if (scoreSpan) {
-      scoreSpan.textContent = " " + scoreInput.value;
-    }
+function getSlotKey(li) {
+  // Always rely on data-slot; if missing, capture then store it once.
+  if (!li.dataset.slot) {
+    // The first text node is your placeholder (e.g., "3P2", "GQF1")
+    const key = (li.firstChild?.textContent || "").trim();
+    li.dataset.slot = key;
   }
-  dialog.close();
-});
+  return li.dataset.slot;
+}
 
+function applySavedResultsToDOM() {
+  // For each <li>, if we have a saved value in resultats.json, show it
+  document.querySelectorAll(".container li").forEach(li => {
+    const container = li.closest(".container");
+    if (!container) return;
+    const category = container.dataset.category;
+    const slot = getSlotKey(li);
 
+    const saved = resultats?.[category]?.[slot];
+    if (saved && typeof saved === "string" && saved.trim() !== "") {
+      // Replace placeholder text with saved team name
+      li.firstChild.textContent = saved;
+    }
+  });
+}
+
+async function loadData() {
+  const [nivRes, resRes] = await Promise.all([
+    fetch("/api/niveaux"),
+    fetch("/api/resultats"),
+  ]);
+  niveaux   = await nivRes.json();
+  resultats = await resRes.json();
+
+  // Before we replace any text, store each slot key once
+  document.querySelectorAll(".container li").forEach(li => getSlotKey(li));
+
+  // Fill placeholders with saved names (if any)
+  applySavedResultsToDOM();
+}
+
+function attachLiClickHandlers() {
+  document.querySelectorAll(".container li").forEach(li => {
+    li.addEventListener("click", () => {
+      currentLi = li;
+      const container = li.closest(".container");
+      currentCategory = container?.dataset.category || null;
+      currentSlot = getSlotKey(li);
+
+      // current visible text (could be placeholder or saved team)
+      const currentText = (li.firstChild?.textContent || "").trim();
+      const scoreSpan = li.querySelector(".score");
+
+      // Fill the dropdown from niveaux.json for this category
+      const values = niveaux?.[currentCategory] || [];
+      populateDropdown(values, currentText);
+
+      // Put existing score (not persisted) into input
+      scoreInput.value = scoreSpan ? scoreSpan.textContent.trim() : "";
+
+      dialog.showModal();
+    });
+  });
+}
+
+async function saveSelection({ category, slot, value }) {
+  const resp = await fetch("/api/resultats", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category, slot, value }),
+  });
+
+  if (!resp.ok) {
+    const msg = await resp.text().catch(() => "");
+    throw new Error(`Save failed: ${resp.status} ${msg}`);
+  }
+
+  // Update local cache so future loads reflect change without refetch
+  if (!resultats[category]) resultats[category] = {};
+  resultats[category][slot] = value;
+}
+
+function attachSaveHandler() {
+  saveBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!currentLi || !currentCategory || !currentSlot) {
+      dialog.close();
+      return;
+    }
+
+    const picked = dropdown.value;
+    const scoreSpan = currentLi.querySelector(".score");
+
+    try {
+      await saveSelection({
+        category: currentCategory,
+        slot: currentSlot,
+        value: picked
+      });
+
+      // Update the UI after successful save
+      currentLi.firstChild.textContent = picked;
+
+      // Score remains a purely visual tweak (not persisted)
+      if (scoreSpan) {
+        const v = (scoreInput.value ?? "").toString().trim();
+        scoreSpan.textContent = v ? ` ${v}` : "";
+      }
+
+      dialog.close();
+    } catch (err) {
+      console.error(err);
+      alert("Erreur: impossible d’enregistrer. Vérifie que le serveur Node tourne.");
+    }
+  });
+}
+
+// ---------- round highlight (kept from your logic) ----------
 (function () {
-  // Change handler: toggle "current" within the same .container
   function applyHighlight(radio) {
     const round = radio.closest('.round');
     if (!round) return;
     const container = round.closest('.container');
     if (!container) return;
 
-    // Clear any previous highlights in this container
     container.querySelectorAll('ul.matchup.current')
       .forEach(ul => ul.classList.remove('current'));
 
-    // Add highlight to all matchups in the selected round
     round.querySelectorAll('ul.matchup')
       .forEach(ul => ul.classList.add('current'));
   }
 
-  // Global change listener (covers all containers)
   document.addEventListener('change', (e) => {
     if (e.target.matches('.round-details input[type="radio"]')) {
       applyHighlight(e.target);
     }
   });
 
-  // On load: group radios per container, clear stray classes, set default, apply highlight
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.container').forEach((container, i) => {
       const radios = container.querySelectorAll('.round-details input[type="radio"]');
-
-      // Give each container its own radio group
       radios.forEach(r => r.name = `current-group-${i}`);
 
-      // Make sure no 'current' is pre-stuck from the HTML
       container.querySelectorAll('ul.matchup.current')
         .forEach(ul => ul.classList.remove('current'));
 
-      // Pick default: first radio (or respect one already marked checked)
       let defaultRadio = container.querySelector('.round-details input[type="radio"]:checked') || radios[0];
       if (defaultRadio) {
-        defaultRadio.checked = true;      // ensure it's actually checked
-        applyHighlight(defaultRadio);     // apply the same logic as on change
+        defaultRadio.checked = true;
+        applyHighlight(defaultRadio);
       }
     });
   });
 })();
+
+// ---------- boot ----------
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadData();
+  attachLiClickHandlers();
+  attachSaveHandler();
+});
