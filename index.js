@@ -4,6 +4,7 @@ const dialog = document.getElementById("dialog-template");
 const dropdown = document.getElementById("dropdown");
 const scoreInput = document.getElementById("score");
 const saveBtn = document.getElementById("saveBtn");
+const clearBtn = document.getElementById("clearBtn");
 const keyInput = document.getElementById("editKey");          // <-- NEW
 
 let currentLi = null;
@@ -239,9 +240,67 @@ function attachSaveHandler() {
   });
 })();
 
+async function clearSelection({ category, slot, editKey }) {
+  const resp = await fetch(`${API_BASE}/resultats`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Edit-Key": editKey || ""
+    },
+    body: JSON.stringify({ category, slot })
+  });
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    throw new Error(`Clear failed: ${resp.status} ${t}`);
+  }
+  // Update local cache
+  if (resultats[category]) {
+    delete resultats[category][slot];
+    if (Object.keys(resultats[category]).length === 0) delete resultats[category];
+  }
+}
+
+function attachClearHandler() {
+  if (!clearBtn) return;
+  clearBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!currentLi || !currentCategory || !currentSlot) return;
+
+    const editKey = (keyInput?.value ?? "").trim();
+    if (!editKey) {
+      alert("Enter the editor key to clear.");
+      return;
+    }
+
+    try {
+      await clearSelection({
+        category: currentCategory,
+        slot: currentSlot,
+        editKey
+      });
+
+      // Reset UI for this li
+      if (currentLi.firstChild) currentLi.firstChild.textContent = "";
+      const scoreSpan = currentLi.querySelector(".score");
+      if (scoreSpan) scoreSpan.textContent = "";
+
+      // optional: clear inputs
+      if (keyInput) keyInput.value = "";
+      if (scoreInput) scoreInput.value = "";
+
+      dialog.close();
+    } catch (err) {
+      console.error(err);
+      alert("Clear blocked (bad key or server error).");
+    }
+  });
+}
+
 // ---------- boot ----------
 document.addEventListener("DOMContentLoaded", async () => {
   await loadData();
   attachLiClickHandlers();
   attachSaveHandler();
+  attachClearHandler();  
 });
+
