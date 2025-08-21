@@ -1,21 +1,23 @@
 body {font-family: 'Istok Web', sans-serif;background: url("http://picjumbo.com/wp-content/uploads/HNCK2189-1300x866.jpg") no-repeat #000;background-size: cover;min-height: 100%;margin: 0;}
 .hero {position:relative; text-align: center; color: #fcfcfc; }
 .hero h1 {font-family: 'Holtwood One SC', serif;font-weight: normal;font-size: 5.4em;margin:0 0 20px; text-shadow:0 0 12px rgba(0, 0, 0, 0.5);text-transform: uppercase;letter-spacing:-1px;}
-.hero p {font-family: 'Abel', sans-serif;text-transform: uppercase; color: #5CCA87; letter-spacing: 6px;text-shadow:0 0 12px rgba(0, 0, 0, 0.5);font-size: 1.2em;}
+.hero p {font-family: 'Abel', sans-serif;text-transform: uppercase; color: #CA5C5C; letter-spacing: 6px;text-shadow:0 0 12px rgba(0, 0, 0, 0.5);font-size: 1.2em;}
 .hero-wrap {padding: 3.5em 10px;}
 .hero p.intro {font-family: 'Holtwood One SC', serif;text-transform: uppercase;letter-spacing: 1px;font-size: 3em;margin-bottom:-40px;}
 .hero p.year {color: #fff; letter-spacing: 20px; font-size: 34px; margin: -25px 0 25px;}
 .hero p.year i {font-size: 14px;vertical-align: middle;}
 #bracket {overflow-x: auto;overflow-y: visible;background-color: #e1e1e1;background-color:rgba(225,225,225,0.9);padding-top: 20px;font-size: 12px;padding: 40px 0;}
-.container {max-width: 1100px;margin: 0 auto;display:block;display: -webkit-box;display: -moz-box;display: -ms-flexbox;display: -webkit-flex;display: -webkit-flex;display: flex;-webkit-flex-direction:row;flex-direction: row;}
-.split {display:block;float:left;display: -webkit-box;display: -moz-box;display: -ms-flexbox;display: -webkit-flex;display:flex;width: 42%;-webkit-flex-direction:row;-moz-flex-direction:row;flex-direction:row;}
+/*used to be max-width :1100px*/
+.container {max-width: max-content;margin: 0 auto;display: inline-block;display: -webkit-box;display: -moz-box;display: -ms-flexbox;display: -webkit-flex;display: -webkit-flex;display: flex;-webkit-flex-direction:row;flex-direction: row;}
+.split {display: inline-block;float:left;display: -webkit-box;display: -moz-box;display: -ms-flexbox;display: -webkit-flex;display:flex;width: 42%;-webkit-flex-direction:row;-moz-flex-direction:row;flex-direction:row;}
 .champion {float:left;display:block;width: 16%;-webkit-flex-direction:row;flex-direction:row;-webkit-align-self:center;align-self:center;margin-top: -15px;text-align: center;padding: 230px 0\9;} 
 .champion i {color: #a0a6a8; font-size: 45px;padding: 10px 0; }
 .round {display:block;float:left;display: -webkit-box;display: -moz-box;display: -ms-flexbox;display: -webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;width:95%;width:30.8333%\9;}
 .split-two {}
 .split-one .round {margin: 0 2.5% 0 0;}
 .split-two .round {margin: 0 0 0 2.5%;}
-.matchup {margin:0;width: 100%;padding: 10px 0;height:60px;-webkit-transition: all 0.2s;transition: all 0.2s;}
+/*width:100%*/
+.matchup {margin:0;width: max-content;padding: 10px 0;height:60px;-webkit-transition: all 0.2s;transition: all 0.2s;}
 .score {font-size: 11px;text-transform: uppercase;float: right;color: #2C7399;font-weight: bold;font-family: 'Roboto Condensed', sans-serif;position: absolute;right: 5px;}
 .team {padding: 0 5px;margin: 3px 0;height: 25px; line-height: 25px;white-space: nowrap; overflow: hidden;position: relative;}
 .round-two .matchup {margin:0; height: 60px;padding: 50px 0;}
@@ -115,4 +117,96 @@ dialog {
   .hero-wrap {padding: 2.5em;}
   .hero p.year {margin: 5px 0 10px; font-size: 18px;}
 
+}
+
+/* === Bracket width + horizontal scroll ================================== */
+:root{
+  /* tune these to taste */
+  --col-min: 260px;   /* min width of each round column */
+  --team-min: 220px;  /* min width of each <li> "box" */
+}
+
+#bracket{
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Make the whole bracket as wide as it needs */
+.container{
+  max-width: none !important;
+  width: max-content !important;
+}
+
+/* Let left/right halves and champ block size to content (not % of viewport) */
+.split,
+.champion{
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+
+/* Give each round column a solid width so items don’t crush */
+.round{
+  width: auto !important;
+  flex: 0 0 var(--col-min) !important; /* fixed column width */
+}
+
+/* === Matchup / Team sizing ============================================== */
+.matchup{
+  width:  100%  !important;   /* column grows to fit widest team */
+  padding: 10px 0;
+}
+
+/* Make the team row flex so name + score are side-by-side cleanly */
+.team{
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-width: var(--team-min) !important;  /* wider boxes */
+  width: 95% !important;           /* can grow for long names */
+  padding: 0 10px;
+  white-space: nowrap;
+  overflow: visible !important;            /* don’t clip long names */
+  height: 25px;
+  line-height: 25px;
+ /* position: relative; */                     /* keep your look */
+}
+
+/* Move score into the flex flow so it never overlaps the name */
+.score{
+  position: static !important;
+  margin-left: auto;       /* push score all the way right */
+  float: none !important;
+  right: auto !important;
+}
+
+.round-three{
+  margin-right:5px !important;
+}
+
+/* Optional: on small screens reduce the column/box widths a bit */
+@media (max-width: 980px){
+  :root{
+    --col-min: 220px;
+    --team-min: 190px;
+  }
+}
+
+#bracket::-webkit-scrollbar {
+  display: none;              /* Chrome/Safari/Edge (WebKit/Blink) */
+}
+
+/* Hide scrollbars globally but keep scrollability */
+html, body {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* old IE/Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.hero p{
+  color: #CA5C5C !important;
 }
