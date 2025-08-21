@@ -139,28 +139,28 @@ function attachLiClickHandlers() {
   });
 }
 
-async function saveSelection({ category, slot, value, score, editKey }) { // <-- CHANGED
-  // Always use API_BASE (either local /api or Worker)
+async function saveSelection({ category, slot, value, score, editKey }) {
   const resp = await fetch(`${API_BASE}/resultats`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "X-Edit-Key": editKey || ""                               // <-- NEW
+      "X-Edit-Key": editKey || ""
     },
-    body: JSON.stringify({ category, slot, value, score }),
+    body: JSON.stringify({ category, slot, value, score }), // <-- no clear
   });
   if (!resp.ok) {
     const t = await resp.text().catch(() => "");
     throw new Error(`Save failed: ${resp.status} ${t}`);
   }
 
-  // Keep local cache in sync with the NEW object shape
+  // Keep local cache in sync (object shape)
   if (!resultats[category]) resultats[category] = {};
   resultats[category][slot] = {
     team: value,
     ...(score && score.trim() ? { score: score.trim() } : {})
   };
 }
+
 
 function attachSaveHandler() {
   saveBtn.addEventListener("click", async (e) => {
@@ -242,17 +242,18 @@ function attachSaveHandler() {
 
 async function clearSelection({ category, slot, editKey }) {
   const resp = await fetch(`${API_BASE}/resultats`, {
-    method: "DELETE",
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "X-Edit-Key": editKey || ""
     },
-    body: JSON.stringify({ category, slot })
+    body: JSON.stringify({ category, slot, clear: true }), // <-- clear only here
   });
   if (!resp.ok) {
     const t = await resp.text().catch(() => "");
     throw new Error(`Clear failed: ${resp.status} ${t}`);
   }
+
   // Update local cache
   if (resultats[category]) {
     delete resultats[category][slot];
@@ -260,34 +261,29 @@ async function clearSelection({ category, slot, editKey }) {
   }
 }
 
+
 function attachClearHandler() {
+  const clearBtn = document.getElementById("clearBtn");
+  const keyInput = document.getElementById("editKey");
   if (!clearBtn) return;
+
   clearBtn.addEventListener("click", async (e) => {
     e.preventDefault();
     if (!currentLi || !currentCategory || !currentSlot) return;
 
     const editKey = (keyInput?.value ?? "").trim();
-    if (!editKey) {
-      alert("Enter the editor key to clear.");
-      return;
-    }
+    if (!editKey) { alert("Enter the editor key to clear."); return; }
 
     try {
-      await clearSelection({
-        category: currentCategory,
-        slot: currentSlot,
-        editKey
-      });
+      await clearSelection({ category: currentCategory, slot: currentSlot, editKey });
 
-      // Reset UI for this li
+      // Reset UI
       if (currentLi.firstChild) currentLi.firstChild.textContent = "";
       const scoreSpan = currentLi.querySelector(".score");
       if (scoreSpan) scoreSpan.textContent = "";
 
-      // optional: clear inputs
       if (keyInput) keyInput.value = "";
       if (scoreInput) scoreInput.value = "";
-
       dialog.close();
     } catch (err) {
       console.error(err);
@@ -296,11 +292,12 @@ function attachClearHandler() {
   });
 }
 
+
 // ---------- boot ----------
 document.addEventListener("DOMContentLoaded", async () => {
   await loadData();
   attachLiClickHandlers();
   attachSaveHandler();
-  attachClearHandler();  
+  attachClearHandler();  // <- ensure this is here
 });
 
