@@ -234,3 +234,18 @@ body::-webkit-scrollbar {
 .team > .terrain:empty{
   display: none;
 }
+
+/* Dim all items by default */
+.champion li,
+.round li {
+  background-color: #fff;
+  opacity: .45;
+}
+
+/* When a round is active, make its items full white */
+.round.current li { opacity: 1; }
+.round.current li.team {
+  background-color: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.1);
+}
+
