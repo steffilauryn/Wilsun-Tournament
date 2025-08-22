@@ -232,3 +232,80 @@ body::-webkit-scrollbar {
   right: 8px; top: 0; bottom: 0;
   display: flex; align-items: center;
 }
+
+/* === NO-OVERLAP FIX (append to the end of your CSS) ===================== */
+
+/* columns: tweak to taste */
+:root{
+  --col-min: 260px;   /* width of each round column */
+}
+
+/* make the bracket horizontally scrollable, no visible bars */
+#bracket{
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+/* overall layout: content-width + a gap between columns */
+.container{
+  max-width: none !important;
+  width: max-content !important;
+  display: flex !important;
+  gap: 28px;                           /* ← space between round columns */
+}
+
+/* halves/champion just size to content */
+.split, .champion{
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+
+/* each round has a fixed column width so items don't crush */
+.round{
+  flex: 0 0 var(--col-min) !important;
+  min-width: var(--col-min) !important;
+  width: var(--col-min) !important;
+}
+
+/* ul inside the column should stay inside the column */
+.matchup{
+  width: 100% !important;
+  padding: 10px 0;
+}
+
+/* <<< KEY PART >>> make each team row fit its column (no bleeding) */
+.team{
+  position: relative !important;       /* anchor the chips */
+  display: block !important;           /* override earlier flex */
+  width: 100% !important;              /* fill only the column */
+  min-width: 0 !important;             /* allow shrinking */
+  box-sizing: border-box !important;   /* padding doesn't add extra width */
+  padding: 0 45px 0 38px !important;   /* room for score (R) & terrain (L) */
+  white-space: nowrap;
+  overflow: hidden;                    /* long names won’t overlap next col */
+  height: 25px;
+  line-height: 25px;
+}
+
+/* terrain chip on the left */
+.team > .terrain{
+  position: absolute !important;
+  left: 8px; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  font-size: 11px; font-weight: 600;
+  color: #4a4a4a; opacity: .9;
+}
+
+/* score chip on the right */
+.team > .score{
+  position: absolute !important;
+  right: 8px; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  font-size: 11px; font-weight: 700;
+  color: #2C7399;
+}
+
+/* optional: slightly narrower on small screens */
+@media (max-width: 980px){
+  :root{ --col-min: 220px; }
+}
