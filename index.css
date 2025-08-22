@@ -217,36 +217,11 @@ body::-webkit-scrollbar {
   --terrain-badge-bg:   #e53935;  /* red background */
   --terrain-badge-fg:   #ffffff;  /* text color */
 }
-
-/* team row: make room for the badge on the left and score on the right */
-.team{
-  position: relative;
-  display: block;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  /* left padding = left gap (10px) + badge size + gap (10px) */
-  padding: 0 55px 0 calc(10px + var(--terrain-badge-size) + 10px);
-  height: 32px;
-  line-height: 32px;
-  margin: 4px 0;
-  white-space: nowrap;
-  overflow: hidden;
-  background: #fff;
-  opacity: 0.95;
-}
-
 /* terrain badge (circle/pill), centered vertically on the left */
 .team > .terrain{
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-
   min-width: var(--terrain-badge-size);
   height: var(--terrain-badge-size);
   line-height: var(--terrain-badge-size);
-  padding: 0 6px;                 /* lets 2+ digits expand to a pill */
   border-radius: 9999px;          /* circle/pill */
   background: var(--terrain-badge-bg);
   color: var(--terrain-badge-fg);
@@ -259,12 +234,3 @@ body::-webkit-scrollbar {
 .team > .terrain:empty{
   display: none;
 }
-
-/* keep score pinned at far right */
-.team > .score{
-  position: absolute;
-  right: 10px; top: 0; bottom: 0;
-  display: flex; align-items: center;
-  font-size: 11px; font-weight: 700; color: #2C7399;
-}
-
