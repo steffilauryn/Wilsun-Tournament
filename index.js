@@ -12,8 +12,8 @@ let currentLi = null;
 let currentCategory = null;
 let currentSlot = null;
 
-let niveaux = null;     // teams per category
-let resultats = {};     // saved selections per category/slot
+let niveaux = null;
+let resultats = {};
 
 // --- ENV detection ---
 const isLocalhost = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
@@ -34,8 +34,8 @@ function populateDropdown(values, currentText) {
   });
 }
 
+// ensure the first child is a text node we can control
 function setLiLabel(li, text) {
-  // ensure first child is a text node we can set
   let node = li.firstChild;
   if (!node || node.nodeType !== Node.TEXT_NODE) {
     node = document.createTextNode("");
@@ -67,9 +67,7 @@ function ensureAuxSpans() {
   });
 }
 
-// Handle BOTH shapes in resultats:
-// - old: resultats[cat][slot] = "Team Name"
-// - new: resultats[cat][slot] = { team: "Team Name", score: "15", terrain: "A3" }
+// old + new shapes supported
 function applySavedResultsToDOM() {
   document.querySelectorAll(".container li.team").forEach(li => {
     const container = li.closest(".container");
@@ -120,7 +118,6 @@ async function loadData() {
     resultats = resultats || {};
   }
 
-  // prime slot keys only on team items
   document.querySelectorAll(".container li.team").forEach(li => getSlotKey(li));
   applySavedResultsToDOM();
 }
@@ -164,9 +161,9 @@ async function saveSelection({ category, slot, value, score, editKey, terrain })
 
   if (!resultats[category]) resultats[category] = {};
   resultats[category][slot] = {
-    team: value,
-    ...(score   && score.trim()   ? { score:   score.trim()   } : {}),
-    ...(terrain && terrain.trim() ? { terrain: terrain.trim() } : {})
+    team: (value ?? "").toString().trim(),
+    score: (score ?? "").toString().trim(),
+    terrain: (terrain ?? "").toString().trim(),
   };
 }
 
@@ -176,12 +173,12 @@ function attachSaveHandler() {
     e.preventDefault();
     if (!currentLi || !currentCategory || !currentSlot) { dialog.close(); return; }
 
-    const picked     = dropdown.value;
-    const scoreSpan  = currentLi.querySelector(".score");
-    const terrainSpan= currentLi.querySelector(".terrain");
-    const scoreVal   = (scoreInput.value ?? "").toString().trim();
-    const terrainVal = (terrainInput?.value ?? "").toString().trim();
-    const editKey    = (keyInput?.value ?? "").trim();
+    const picked      = dropdown.value;
+    const scoreSpan   = currentLi.querySelector(".score");
+    const terrainSpan = currentLi.querySelector(".terrain");
+    const scoreVal    = (scoreInput.value ?? "").toString().trim();
+    const terrainVal  = (terrainInput?.value ?? "").toString().trim();
+    const editKey     = (keyInput?.value ?? "").trim();
 
     if (!editKey) { alert("Enter the editor key to save."); return; }
 
@@ -195,12 +192,11 @@ function attachSaveHandler() {
         editKey
       });
 
-      // Update UI immediately
       setLiLabel(currentLi, picked);
       if (scoreSpan)   scoreSpan.textContent   = scoreVal   ? ` ${scoreVal}` : "";
       if (terrainSpan) terrainSpan.textContent = terrainVal || "";
 
-      if (keyInput) keyInput.value = "";     // optional: clear key
+      if (keyInput) keyInput.value = "";
       dialog.close();
     } catch (err) {
       console.error(err);
@@ -223,7 +219,6 @@ async function clearSelection({ category, slot, editKey }) {
     throw new Error(`Clear failed: ${resp.status} ${t}`);
   }
 
-  // Update local cache
   if (resultats[category]) {
     delete resultats[category][slot];
     if (Object.keys(resultats[category]).length === 0) delete resultats[category];
@@ -242,7 +237,6 @@ function attachClearHandler() {
     try {
       await clearSelection({ category: currentCategory, slot: currentSlot, editKey });
 
-      // Reset UI
       setLiLabel(currentLi, "");
       const scoreSpan   = currentLi.querySelector(".score");
       const terrainSpan = currentLi.querySelector(".terrain");
@@ -260,11 +254,10 @@ function attachClearHandler() {
   });
 }
 
-// ---------- boot ----------
 document.addEventListener("DOMContentLoaded", async () => {
-  ensureAuxSpans();           // make sure .score/.terrain exist in every li
-  await loadData();           // fetch niveaux + resultats
-  attachLiClickHandlers();    // wire clicks
-  attachSaveHandler();        // wire save
-  attachClearHandler();       // wire clear
+  ensureAuxSpans();
+  await loadData();
+  attachLiClickHandlers();
+  attachSaveHandler();
+  attachClearHandler();
 });
