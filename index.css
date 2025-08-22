@@ -210,25 +210,3 @@ body::-webkit-scrollbar {
 .hero p{
   color: #CA5C5C !important;
 }
-
-/* Make room for a left-side terrain chip and right-side score */
-.team{
-  padding: 0 45px 0 38px !important;  /* left space for terrain, right for score */
-}
-
-/* terrain chip on the left, inside the li */
-.team > .terrain{
-  position: absolute !important;
-  left: 8px; top: 0; bottom: 0;
-  display: flex; align-items: center;
-  font-size: 11px; font-weight: 600;
-  color: #4a4a4a;
-  opacity: .9;
-}
-
-/* keep score on the right (what you already had) */
-.team > .score{
-  position: absolute !important;
-  right: 8px; top: 0; bottom: 0;
-  display: flex; align-items: center;
-}
