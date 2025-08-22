@@ -309,3 +309,37 @@ body::-webkit-scrollbar {
 @media (max-width: 980px){
   :root{ --col-min: 220px; }
 }
+
+/* === FINAL CHIP PLACEMENT (forces right/left positions) === */
+.team{
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  padding: 0 55px 0 40px !important;  /* right = score, left = terrain */
+  white-space: nowrap;
+  overflow: hidden;                    /* avoid overlap into next column */
+  height: 25px; line-height: 25px;
+}
+
+/* terrain on the LEFT */
+.team > .terrain{
+  position: absolute !important;
+  left: 10px; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  font-size: 11px; font-weight: 600;
+  color: #4a4a4a; opacity: .9;
+  z-index: 1;
+}
+
+/* score on the RIGHT */
+.team > .score{
+  position: absolute !important;
+  right: 10px; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  font-size: 11px; font-weight: 700;
+  color: #2C7399;
+  margin: 0 !important;
+  float: none !important;
+  left: auto !important;              /* cancel any earli*
