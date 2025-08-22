@@ -1,11 +1,12 @@
-// index.js  (dual-mode for Node server + GitHub Pages + score persistence)
+// index.js  (GitHub Pages + Cloudflare Worker; team + score + terrain + clear)
 
 const dialog = document.getElementById("dialog-template");
 const dropdown = document.getElementById("dropdown");
 const scoreInput = document.getElementById("score");
+const terrainInput = document.getElementById("terrain");
+const keyInput = document.getElementById("editKey");
 const saveBtn = document.getElementById("saveBtn");
 const clearBtn = document.getElementById("clearBtn");
-const keyInput = document.getElementById("editKey");          // <-- NEW
 
 let currentLi = null;
 let currentCategory = null;
@@ -15,18 +16,11 @@ let niveaux = null;     // teams per category
 let resultats = {};     // saved selections per category/slot
 
 // --- ENV detection ---
-// Localhost => Node server (/api)
-// GitHub Pages => Cloudflare Worker for resultats, static for niveaux
 const isLocalhost = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
-
-// IMPORTANT: remove the leading space you had before
 const WORKER_API = "https://cf-worker.wilsuntournament.workers.dev";
-
 const MODE = isLocalhost ? "local-server" : "pages-with-worker";
-const STATIC_DATA_DIR = "./data";  // niveaux shipped in repo (read-only)
+const STATIC_DATA_DIR = "./data";
 let API_BASE = MODE === "local-server" ? "/api" : WORKER_API;
-
-const STORAGE_KEY = "resultats_local_v1"; // only used if you ever re-enable static fallback
 
 // ---------- helpers ----------
 function populateDropdown(values, currentText) {
@@ -40,6 +34,16 @@ function populateDropdown(values, currentText) {
   });
 }
 
+function setLiLabel(li, text) {
+  // ensure first child is a text node we can set
+  let node = li.firstChild;
+  if (!node || node.nodeType !== Node.TEXT_NODE) {
+    node = document.createTextNode("");
+    li.insertBefore(node, li.firstChild);
+  }
+  node.textContent = text;
+}
+
 function getSlotKey(li) {
   if (!li.dataset.slot) {
     const key = (li.firstChild?.textContent || "").trim();
@@ -48,25 +52,42 @@ function getSlotKey(li) {
   return li.dataset.slot;
 }
 
+function ensureAuxSpans() {
+  document.querySelectorAll(".container li.team").forEach(li => {
+    if (!li.querySelector(".score")) {
+      const s = document.createElement("span");
+      s.className = "score";
+      li.appendChild(s);
+    }
+    if (!li.querySelector(".terrain")) {
+      const t = document.createElement("span");
+      t.className = "terrain";
+      li.appendChild(t);
+    }
+  });
+}
+
 // Handle BOTH shapes in resultats:
 // - old: resultats[cat][slot] = "Team Name"
-// - new: resultats[cat][slot] = { team: "Team Name", score: "15" }
+// - new: resultats[cat][slot] = { team: "Team Name", score: "15", terrain: "A3" }
 function applySavedResultsToDOM() {
-  document.querySelectorAll(".container li").forEach(li => {
+  document.querySelectorAll(".container li.team").forEach(li => {
     const container = li.closest(".container");
     if (!container) return;
     const category = container.dataset.category;
     const slot = getSlotKey(li);
     const saved = resultats?.[category]?.[slot];
 
-    const team  = typeof saved === "string" ? saved : saved?.team;
-    const score = typeof saved === "object" ? (saved.score || "") : "";
+    const team    = typeof saved === "string" ? saved : saved?.team;
+    const score   = typeof saved === "object" ? (saved.score   || "") : "";
+    const terrain = typeof saved === "object" ? (saved.terrain || "") : "";
 
-    if (team && team.trim()) {
-      li.firstChild.textContent = team;
-    }
-    const scoreSpan = li.querySelector(".score");
-    if (scoreSpan) scoreSpan.textContent = score ? ` ${score}` : "";
+    if (team && team.trim()) setLiLabel(li, team);
+
+    const scoreSpan   = li.querySelector(".score");
+    const terrainSpan = li.querySelector(".terrain");
+    if (scoreSpan)   scoreSpan.textContent   = score   ? ` ${score}` : "";
+    if (terrainSpan) terrainSpan.textContent = terrain || "";
   });
 }
 
@@ -76,23 +97,9 @@ async function fetchJSON(url) {
   return res.json();
 }
 
-function deepMerge(base, add) {
-  if (!add) return base || {};
-  const out = { ...(base || {}) };
-  for (const [k, v] of Object.entries(add)) {
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      out[k] = deepMerge(out[k], v);
-    } else {
-      out[k] = v;
-    }
-  }
-  return out;
-}
-
 async function loadData() {
   try {
     if (MODE === "local-server") {
-      // Node server: both via API
       const [niv, res] = await Promise.all([
         fetchJSON(`${API_BASE}/niveaux`),
         fetchJSON(`${API_BASE}/resultats`).catch(() => ({})),
@@ -100,8 +107,6 @@ async function loadData() {
       niveaux = niv;
       resultats = res || {};
     } else {
-      // GitHub Pages + Worker:
-      // niveaux from static repo, resultats from Worker API
       const [niv, res] = await Promise.all([
         fetchJSON(`${STATIC_DATA_DIR}/niveaux.json`),
         fetchJSON(`${API_BASE}/resultats`).catch(() => ({})),
@@ -115,12 +120,13 @@ async function loadData() {
     resultats = resultats || {};
   }
 
-  document.querySelectorAll(".container li").forEach(li => getSlotKey(li));
+  // prime slot keys only on team items
+  document.querySelectorAll(".container li.team").forEach(li => getSlotKey(li));
   applySavedResultsToDOM();
 }
 
 function attachLiClickHandlers() {
-  document.querySelectorAll(".container li").forEach(li => {
+  document.querySelectorAll(".container li.team").forEach(li => {
     li.addEventListener("click", () => {
       currentLi = li;
       const container = li.closest(".container");
@@ -134,51 +140,50 @@ function attachLiClickHandlers() {
       populateDropdown(values, currentText);
 
       scoreInput.value = scoreSpan ? scoreSpan.textContent.trim() : "";
+      const saved = resultats?.[currentCategory]?.[currentSlot];
+      terrainInput.value = (typeof saved === "object" && saved?.terrain) ? saved.terrain : "";
+
       dialog.showModal();
     });
   });
 }
 
-async function saveSelection({ category, slot, value, score, editKey }) {
+async function saveSelection({ category, slot, value, score, editKey, terrain }) {
   const resp = await fetch(`${API_BASE}/resultats`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "X-Edit-Key": editKey || ""
     },
-    body: JSON.stringify({ category, slot, value, score }), // <-- no clear
+    body: JSON.stringify({ category, slot, value, score, terrain }),
   });
   if (!resp.ok) {
     const t = await resp.text().catch(() => "");
     throw new Error(`Save failed: ${resp.status} ${t}`);
   }
 
-  // Keep local cache in sync (object shape)
   if (!resultats[category]) resultats[category] = {};
   resultats[category][slot] = {
     team: value,
-    ...(score && score.trim() ? { score: score.trim() } : {})
+    ...(score   && score.trim()   ? { score:   score.trim()   } : {}),
+    ...(terrain && terrain.trim() ? { terrain: terrain.trim() } : {})
   };
 }
 
-
 function attachSaveHandler() {
+  if (!saveBtn) return;
   saveBtn.addEventListener("click", async (e) => {
     e.preventDefault();
-    if (!currentLi || !currentCategory || !currentSlot) {
-      dialog.close();
-      return;
-    }
+    if (!currentLi || !currentCategory || !currentSlot) { dialog.close(); return; }
 
-    const picked   = dropdown.value;
-    const scoreSpan = currentLi.querySelector(".score");
-    const scoreVal  = (scoreInput.value ?? "").toString().trim();
-    const editKey   = (keyInput?.value ?? "").trim();           // <-- NEW
+    const picked     = dropdown.value;
+    const scoreSpan  = currentLi.querySelector(".score");
+    const terrainSpan= currentLi.querySelector(".terrain");
+    const scoreVal   = (scoreInput.value ?? "").toString().trim();
+    const terrainVal = (terrainInput?.value ?? "").toString().trim();
+    const editKey    = (keyInput?.value ?? "").trim();
 
-    if (!editKey) {                                             // <-- NEW
-      alert("Enter the editor key to save.");
-      return;
-    }
+    if (!editKey) { alert("Enter the editor key to save."); return; }
 
     try {
       await saveSelection({
@@ -186,14 +191,16 @@ function attachSaveHandler() {
         slot: currentSlot,
         value: picked,
         score: scoreVal,
-        editKey                                             // <-- NEW
+        terrain: terrainVal,
+        editKey
       });
 
       // Update UI immediately
-      currentLi.firstChild.textContent = picked;
-      if (scoreSpan) scoreSpan.textContent = scoreVal ? ` ${scoreVal}` : "";
+      setLiLabel(currentLi, picked);
+      if (scoreSpan)   scoreSpan.textContent   = scoreVal   ? ` ${scoreVal}` : "";
+      if (terrainSpan) terrainSpan.textContent = terrainVal || "";
 
-      if (keyInput) keyInput.value = "";                      // optional: clear key
+      if (keyInput) keyInput.value = "";     // optional: clear key
       dialog.close();
     } catch (err) {
       console.error(err);
@@ -202,44 +209,6 @@ function attachSaveHandler() {
   });
 }
 
-// ---------- round highlight (unchanged) ----------
-(function () {
-  function applyHighlight(radio) {
-    const round = radio.closest('.round');
-    if (!round) return;
-    const container = round.closest('.container');
-    if (!container) return;
-
-    container.querySelectorAll('ul.matchup.current')
-      .forEach(ul => ul.classList.remove('current'));
-
-    round.querySelectorAll('ul.matchup')
-      .forEach(ul => ul.classList.add('current'));
-  }
-
-  document.addEventListener('change', (e) => {
-    if (e.target.matches('.round-details input[type="radio"]')) {
-      applyHighlight(e.target);
-    }
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.container').forEach((container, i) => {
-      const radios = container.querySelectorAll('.round-details input[type="radio"]');
-      radios.forEach(r => r.name = `current-group-${i}`);
-
-      container.querySelectorAll('ul.matchup.current')
-        .forEach(ul => ul.classList.remove('current'));
-
-      let defaultRadio = container.querySelector('.round-details input[type="radio"]:checked') || radios[0];
-      if (defaultRadio) {
-        defaultRadio.checked = true;
-        applyHighlight(defaultRadio);
-      }
-    });
-  });
-})();
-
 async function clearSelection({ category, slot, editKey }) {
   const resp = await fetch(`${API_BASE}/resultats`, {
     method: "PUT",
@@ -247,7 +216,7 @@ async function clearSelection({ category, slot, editKey }) {
       "Content-Type": "application/json",
       "X-Edit-Key": editKey || ""
     },
-    body: JSON.stringify({ category, slot, clear: true }), // <-- clear only here
+    body: JSON.stringify({ category, slot, clear: true }),
   });
   if (!resp.ok) {
     const t = await resp.text().catch(() => "");
@@ -261,12 +230,8 @@ async function clearSelection({ category, slot, editKey }) {
   }
 }
 
-
 function attachClearHandler() {
-  const clearBtn = document.getElementById("clearBtn");
-  const keyInput = document.getElementById("editKey");
   if (!clearBtn) return;
-
   clearBtn.addEventListener("click", async (e) => {
     e.preventDefault();
     if (!currentLi || !currentCategory || !currentSlot) return;
@@ -278,12 +243,15 @@ function attachClearHandler() {
       await clearSelection({ category: currentCategory, slot: currentSlot, editKey });
 
       // Reset UI
-      if (currentLi.firstChild) currentLi.firstChild.textContent = "";
-      const scoreSpan = currentLi.querySelector(".score");
-      if (scoreSpan) scoreSpan.textContent = "";
+      setLiLabel(currentLi, "");
+      const scoreSpan   = currentLi.querySelector(".score");
+      const terrainSpan = currentLi.querySelector(".terrain");
+      if (scoreSpan)   scoreSpan.textContent   = "";
+      if (terrainSpan) terrainSpan.textContent = "";
 
       if (keyInput) keyInput.value = "";
       if (scoreInput) scoreInput.value = "";
+      if (terrainInput) terrainInput.value = "";
       dialog.close();
     } catch (err) {
       console.error(err);
@@ -292,12 +260,11 @@ function attachClearHandler() {
   });
 }
 
-
 // ---------- boot ----------
 document.addEventListener("DOMContentLoaded", async () => {
-  await loadData();
-  attachLiClickHandlers();
-  attachSaveHandler();
-  attachClearHandler();  // <- ensure this is here
+  ensureAuxSpans();           // make sure .score/.terrain exist in every li
+  await loadData();           // fetch niveaux + resultats
+  attachLiClickHandlers();    // wire clicks
+  attachSaveHandler();        // wire save
+  attachClearHandler();       // wire clear
 });
-

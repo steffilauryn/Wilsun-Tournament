@@ -68,7 +68,7 @@ export default {
       let body = {};
       try { body = await req.json(); } catch {}
 
-      const { category, slot, value, score, clear } = body || {};
+      const { category, slot, value, score, terrain, clear } = body || {};
 
       // --- CLEAR path (PUT with { clear: true })
       if (clear === true) {
@@ -96,11 +96,14 @@ export default {
       if (!current[category]) current[category] = {};
       current[category][slot] = {
         team: value,
-        ...(typeof score === "string" && score.trim() !== "" ? { score: score.trim() } : {})
+        ...(typeof score === "string"   && score.trim()   !== "" ? { score:   score.trim()   } : {}),
+        ...(typeof terrain === "string" && terrain.trim() !== "" ? { terrain: terrain.trim() } : {})
       };
 
+
       await env.RESULTATS.put("resultats", JSON.stringify(current));
-      return json({ ok: true, saved: { category, slot, team: value, score: score ?? "" } }, 200, cors.headers);
+      return json({ ok: true, saved: { category, slot, team: value, score: score ?? "", terrain: terrain ?? "" } }, 200, cors.headers);
+
     }
 
     // DELETE /resultats  (optional: also supports clear via DELETE)
