@@ -261,3 +261,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   attachSaveHandler();
   attachClearHandler();
 });
+
+// ---- round highlight (make the active round white) -----------------------
+(function () {
+  function setCurrentForContainer(container, radio) {
+    container.querySelectorAll('.round.current')
+      .forEach(r => r.classList.remove('current'));
+    const round = radio.closest('.round');
+    if (round) round.classList.add('current');
+  }
+
+  document.addEventListener('change', (e) => {
+    if (e.target.matches('.round-details input[type="radio"]')) {
+      const container = e.target.closest('.container');
+      if (container) setCurrentForContainer(container, e.target);
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.container').forEach((container, i) => {
+      const radios = container.querySelectorAll('.round-details input[type="radio"]');
+      radios.forEach(r => r.name = `current-group-${i}`); // isolate groups
+
+      const selected =
+        container.querySelector('.round-details input[type="radio"]:checked') || radios[0];
+      if (selected) {
+        selected.checked = true;
+        setCurrentForContainer(container, selected);
+      }
+    });
+  });
+})();
+
